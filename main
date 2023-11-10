@@ -3,38 +3,43 @@
 
 #define ALPHABET_SIZE 26
 
+struct node {
+    char letter;
+    int frequency;
+    struct node* left;
+    struct node* right;
+};
+
 void countLetters(const char *filename, int letterCount[ALPHABET_SIZE]) {
-    FILE *file = fopen(filename, "r");
+		FILE *file = fopen(filename, "r");
 
-    if (file == NULL) {
-        perror("Error opening file");
-        return;
-    }
+		if (file == NULL) {
+				perror("Error opening file");
+				return;
+		}
 
-    for (int i = 0; i < ALPHABET_SIZE; i++) {
-        letterCount[i] = 0;
-    }
-
-    int c;
-    while ((c = fgetc(file)) != EOF) {
-        // Check if the character is an alphabet letter
-        if (isalpha(c)) {
-            c = tolower(c);
-            letterCount[c - 'a']++;
-        }
-    }
-    fclose(file);
+		for (int i = 0; i < ALPHABET_SIZE; i++) {
+				letterCount[i] = 0;
+		}
+	
+		int c;
+		while ((c = fgetc(file)) != EOF) {
+				if (isalpha(c)) {
+						c = tolower(c);
+						letterCount[c - 'a']++;
+				}
+		}
+		fclose(file);
 }
 
 int main() {
-    int letterCount[ALPHABET_SIZE];
-    const char *filename = "file.txt";
-    countLetters(filename, letterCount);
+		int letterCount[ALPHABET_SIZE];
+		const char *filename = "file.txt";
+		countLetters(filename, letterCount);
 
-    for (int i = 0; i < ALPHABET_SIZE; i++) {
-        printf("%c: %d\n", 'a' + i, letterCount[i]);
-    }
+		for (int i = 0; i < ALPHABET_SIZE; i++) {
+				printf("%c: %d\n", 'a' + i, letterCount[i]);
+		}
 
-    return 0;
+		return 0;
 }
-
