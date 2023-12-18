@@ -1,45 +1,307 @@
 #include <stdio.h>
-#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define ALPHABET_SIZE 26
+// Define a structure for a node in the Huffman tree
+typedef struct Node {
+		char data;
+		double frequency;
+		struct Node* left;
+		struct Node* right;
+} Node;
 
-struct node {
-    char letter;
-    int frequency;
-    struct node* left;
-    struct node* right;
-};
+// Function to create a new node
+Node* createNode(char data, double frequency) {
+		Node* newNode = (Node*)malloc(sizeof(Node));
+		newNode->data = data;
+		newNode->frequency = frequency;
+		newNode->left = newNode->right = NULL;
+		return newNode;
+}
 
-void countLetters(const char *filename, int letterCount[ALPHABET_SIZE]) {
-		FILE *file = fopen(filename, "r");
+// Min heap structure to build the Huffman tree
+typedef struct MinHeap {
+		int size;
+		int capacity;
+		Node** array;
+} MinHeap;
 
-		if (file == NULL) {
-				perror("Error opening file");
+// Function to create a new MinHeap
+MinHeap* createMinHeap(int capacity) {
+		MinHeap* minHeap = (MinHeap*)malloc(sizeof(MinHeap));
+		minHeap->size = 0;
+		minHeap->capacity = capacity;
+		minHeap->array = (Node**)malloc(capacity * sizeof(Node*));
+		return minHeap;
+}
+
+// Function to swap two nodes in the MinHeap
+void swapNodes(Node** a, Node** b) {
+		Node* temp = *a;
+		*a = *b;
+		*b = temp;
+}
+
+// Heapify function to maintain the min heap property
+void minHeapify(MinHeap* minHeap, int idx) {
+		int smallest = idx;
+		int left = 2 * idx + 1;
+		int right = 2 * idx + 2;
+
+		if (left < minHeap->size && minHeap->array[left]->frequency < minHeap->array[smallest]->frequency)
+				smallest = left;
+
+		if (right < minHeap->size && minHeap->array[right]->frequency < minHeap->array[smallest]->frequency)
+				smallest = right;
+
+		if (smallest != idx) {
+				swapNodes(&minHeap->array[smallest], &minHeap->array[idx]);
+				minHeapify(minHeap, smallest);
+		}
+}
+
+// Function to check if the heap has only one node
+int isSizeOne(MinHeap
+* minHeap) {
+		return (minHeap->size == 1);
+}
+
+// Function to extract the minimum value node from the heap
+Node* extractMin(MinHeap* minHeap) {
+		Node* temp = minHeap->array[0];
+		minHeap->array[0] = minHeap->array[minHeap->size - 1];
+		--minHeap->size;
+		minHeapify(minHeap, 0);
+		return temp;
+}
+
+// Function to insert a new node into the heap
+void insertMinHeap(MinHeap* minHeap, Node* node) {
+		++minHeap->size;
+		int i = minHeap->size - 1;
+
+		while (i && node->frequency < minHeap->array[(i - 1) / 2]->frequency) {
+				minHeap->array[i] = minHeap->array[(i - 1) / 2];
+				i = (i - 1) / 2;
+		}
+
+		minHeap->array[i] = node;
+}
+
+// Function to build the Huffman tree
+Node* buildHuffmanTree(char data[], double frequency[], int size) {
+		MinHeap* minHeap = createMinHeap(size);
+
+		for (int i = 0; i < size; ++i) {
+				insertMinHeap(minHeap, createNode(data[i], frequency[i]));
+		}
+
+		while (!isSizeOne(minHeap)) {
+				Node* left = extractMin(minHeap);
+				Node* right = extractMin(minHeap);
+
+				Node* newNode = createNode('$', left->frequency + right->frequency);
+				newNode->left = left;
+				newNode->right = right;
+
+				insertMinHeap(minHeap, newNode);
+		}
+
+		return extractMin(minHeap);
+}
+
+// Function to print the Huffman codes from the root of the tree
+void printCodes(Node* root, int arr[], int top) {
+		if (root->left) {
+				arr[top] = 0;
+				printCodes(root->left, arr, top + 1);
+		}
+
+		if (root->right) {
+				arr[top] = 1;
+				printCodes(root->right, arr, top + 1);
+		}
+
+		if (!(root->left) && !(root->right)) {
+				printf("%c: ", root->data);
+				for (int i = 0; i < top; ++i) {
+						printf("%d", arr[i]);
+				}
+				printf("\n");
+		}
+}
+// Helper function to encode a character
+void encodeChar(Node* root, char targetChar, int arr[], int top, char* encodedString, int* index) {
+		if (root == NULL) {
 				return;
 		}
 
-		for (int i = 0; i < ALPHABET_SIZE; i++) {
-				letterCount[i] = 0;
+		if (root->data == targetChar) {
+				for (int i = 0; i < top; ++i) {
+						encodedString[*index] = arr[i] + '0';
+						(*index)++;
+				}
+		} else {
+				arr[top] = 0;
+				encodeChar(root->left, targetChar, arr, top + 1, encodedString, index);
+
+				arr[top] = 1;
+				encodeChar(root->right, targetChar, arr, top + 1, encodedString, index);
 		}
-	
-		int c;
-		while ((c = fgetc(file)) != EOF) {
-				if (isalpha(c)) {
-						c = tolower(c);
-						letterCount[c - 'a']++;
+}
+
+// Function to encode a string using Huffman codes, including space character
+void encodeString(Node* root, char* inputString, char* encodedString) {
+		int len = strlen(inputString);
+		int index = 0;
+
+		for (int i = 0; i < len; ++i) {
+				char currentChar = inputString[i];
+
+				int arr[100], top = 0;
+				if (currentChar == ' ') {
+						encodeChar(root, ' ', arr, top, encodedString, &index);
+				} else {
+						encodeChar(root, currentChar, arr, top, encodedString, &index);
 				}
 		}
-		fclose(file);
+
+		// Null-terminate the encoded string
+		encodedString[index] = '\0';
+}
+// Function to decode an encoded string using Huffman codes
+char* decodeString(Node* root, char* encodedString) {
+		Node* current = root;
+		int len = strlen(encodedString);
+		char* decodedString = (char*)malloc(sizeof(char) * (len + 1));
+		int index = 0;
+
+		for (int i = 0; i < len; ++i) {
+				if (encodedString[i] == '0' && current->left) {
+						current = current->left;
+				} else if (encodedString[i] == '1' && current->right) {
+						current = current->right;
+				}
+
+				if (!(current->left) && !(current->right)) {
+						decodedString[index++] = current->data;
+						current = root; // Reset to the root for the next character
+				}
+		}
+
+		decodedString[index] = '\0';
+		return decodedString;
+}
+
+char* readTextFile(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char* buffer = (char*)malloc(length + 1);
+    if (buffer == NULL) {
+        fclose(file);
+        return NULL;
+    }
+
+    fread(buffer, 1, length, file);
+    fclose(file);
+    buffer[length] = '\0';
+    return buffer;
+}
+
+void writeToFile(char* filename, char* text) {
+  FILE* file = fopen(filename, "w");
+  if (file != NULL) {
+    fprintf(file, "%s", text);
+    fclose(file);
+  } else {
+    printf("Error opening file");
+  }
 }
 
 int main() {
-		int letterCount[ALPHABET_SIZE];
-		const char *filename = "file.txt";
-		countLetters(filename, letterCount);
+		char alphabet_en[] = {' ','a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z','.',',','?','!','-','"'};
+	char alphabet_fr[] = {' ','a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z','.',',','?','!','-','"'};
+		double frequency_fr[] = {10,8.40, 1.06, 3.03, 4.18, 17.26, 1.12, 1.27, 0.92, 7.34, 0.31, 0.05, 6.01, 2.96, 7.13, 5.26, 3.01, 0.99, 6.55, 8.08, 7.07, 5.74, 1.32, 0.04, 0.45, 0.30, 0.12, 6, 5 , 0.53, 0.52, 0.5 ,0.55};
+		double frequency_en[] = {15,8.12, 1.49, 2.71, 4.32, 12.02, 2.30, 2.03, 5.92, 7.31, 0.10, 0.69, 3.98, 2.61, 6.95, 7.68, 1.82, 0.11, 6.02, 6.28, 9.10, 2.88, 1.11, 2.09, 0.17, 2.11, 0.07, 6, 5 , 0.53, 0.52, 0.5 ,0.55};
 
-		for (int i = 0; i < ALPHABET_SIZE; i++) {
-				printf("%c: %d\n", 'a' + i, letterCount[i]);
-		}
+	  char language[10];
+    char action[10];
 
+    printf("Which language would you like to use (F)rench or (E)nglish: ");
+    scanf("%s", language);
+
+    printf("Would you like to (E)ncode or (D)ecode: ");
+    scanf("%s", action);
+
+    if (strcmp(language, "E") == 0) {
+        // Perform encoding or decoding using English frequency	// Construct the Huffman tree
+				int size = sizeof(alphabet_en) / sizeof(alphabet_en[0]);
+				Node* root = buildHuffmanTree(alphabet_en, frequency_en, size);
+				// For testing, print the Huffman codes
+				int arr[100], top = 0;
+				printf("Huffman Codes:\n");
+				printCodes(root, arr, top);
+        if (strcmp(action, "E") == 0) {
+          // Perform encoding using English frequency
+					// Replace letters in an input string with their Huffman codes
+					char inputFile[100];
+					printf("Enter a filename: ");
+					scanf("%s", inputFile);
+					char* inputText = readTextFile(inputFile);
+					char encodedString[1000];
+					encodeString(root, inputText, encodedString);
+					printf("Encoded String: %s\n", encodedString);
+					writeToFile("decode.txt", encodedString);
+        } else if (strcmp(action, "D") == 0) {
+          // Perform decoding using English frequency
+					// Decode the encoded string
+					char inputFile[100];
+					printf("Enter a filename to decode: ");
+					scanf("%s",inputFile);
+					char* encodedString = readTextFile(inputFile);
+					char* res = decodeString(root, encodedString);
+					printf("Original String: %s\n", res);
+        } else {
+            printf("Invalid action\n");
+        }
+    } else if (strcmp(language, "F") == 0) {
+        // Perform encoding or decoding using French frequency
+				// Perform encoding or decoding using English frequency	// Construct the Huffman tree
+				int size = sizeof(alphabet_fr) / sizeof(alphabet_fr[0]);
+				Node* root = buildHuffmanTree(alphabet_fr, frequency_fr, size);
+				// For testing, print the Huffman codes
+				int arr[100], top = 0;
+				printf("Huffman Codes:\n");
+				printCodes(root, arr, top);
+    		if (strcmp(action, "E") == 0) {
+          // Perform encoding using French frequency
+					char inputFile[100];
+					printf("Enter a filename: ");
+					scanf("%s", inputFile);
+					char* inputText = readTextFile(inputFile);
+					char encodedString[1000];
+					encodeString(root, inputText, encodedString);
+					printf("Encoded String: %s\n", encodedString);
+        } else if (strcmp(action, "D") == 0) {
+          // Perform decoding using French frequency
+					char inputFile[100];
+					printf("Enter a filename to decode: ");
+					scanf("%s",inputFile);
+					char* encodedString = readTextFile(inputFile);
+					char* res = decodeString(root, encodedString);
+					printf("Original String: %s\n", res);
+        } else {
+            printf("Invalid action\n");
+        }
+    } else {
+        printf("Invalid language\n");
+    }
 		return 0;
 }
